@@ -11,3 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
 INSERT INTO users (username, password, is_admin)
 VALUES ('admin', 'admin', TRUE)
 ON CONFLICT (username) DO NOTHING;
+
+-- Donner les permissions à ia_user
+GRANT ALL PRIVILEGES ON TABLE users TO ia_user;
+GRANT USAGE, SELECT ON SEQUENCE users_id_seq TO ia_user;
