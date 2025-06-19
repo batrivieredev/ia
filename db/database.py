@@ -1,9 +1,7 @@
 import mysql.connector
 from mysql.connector import pooling
 import os
-import redis
 from pathlib import Path
-import json
 
 class Database:
     def __init__(self):
@@ -20,11 +18,6 @@ class Database:
 
         # Initialize connection pool
         self.pool = mysql.connector.pooling.MySQLConnectionPool(**self.pool_config)
-
-        # Initialize Redis
-        self.redis = redis.Redis(host='localhost', port=6379, db=0)
-        self.cache_ttl = 3600  # 1 hour cache
-
         self.init_db()
 
     def init_db(self):
@@ -46,13 +39,6 @@ class Database:
 
     def verify_user(self, username, password):
         """Verify user credentials"""
-        cache_key = f"auth:{username}:{password}"
-
-        # Check cache first
-        cached = self.redis.get(cache_key)
-        if cached:
-            return json.loads(cached)
-
         conn = self.get_connection()
         try:
             with conn.cursor() as cursor:
@@ -61,40 +47,23 @@ class Database:
                     (username, password)
                 )
                 result = cursor.fetchone()
-                if result:
-                    # Cache successful login
-                    self.redis.setex(
-                        cache_key,
-                        self.cache_ttl,
-                        json.dumps(result)
-                    )
                 return result if result else None
         finally:
             conn.close()
 
     def get_users(self):
         """Get all users"""
-        cache_key = "users:all"
-
-        # Check cache first
-        cached = self.redis.get(cache_key)
-        if cached:
-            return json.loads(cached)
-
         conn = self.get_connection()
         try:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
-                    'SELECT id, username, is_admin, created_at FROM users'
+                    'SELECT id, username, is_admin, created_at FROM users ORDER BY created_at DESC'
                 )
                 users = cursor.fetchall()
 
-                # Cache the results
-                self.redis.setex(
-                    cache_key,
-                    self.cache_ttl,
-                    json.dumps([{**user, 'created_at': user['created_at'].isoformat()} for user in users])
-                )
+                # Convert datetime objects to string for JSON serialization
+                for user in users:
+                    user['created_at'] = user['created_at'].isoformat()
                 return users
         finally:
             conn.close()
@@ -109,8 +78,6 @@ class Database:
                     (username, password, is_admin)
                 )
             conn.commit()
-            # Invalidate caches
-            self.redis.delete("users:all")
             return True
         except mysql.connector.IntegrityError:
             conn.rollback()
@@ -134,12 +101,7 @@ class Database:
                         (username, is_admin, user_id)
                     )
             conn.commit()
-            success = cursor.rowcount > 0
-            if success:
-                # Invalidate caches
-                self.redis.delete("users:all")
-                self.redis.delete(f"user:{user_id}")
-            return success
+            return cursor.rowcount > 0
         except mysql.connector.IntegrityError:
             conn.rollback()
             return False
@@ -156,12 +118,7 @@ class Database:
                     (user_id, 'admin')
                 )
             conn.commit()
-            success = cursor.rowcount > 0
-            if success:
-                # Invalidate caches
-                self.redis.delete("users:all")
-                self.redis.delete(f"user:{user_id}")
-            return success
+            return cursor.rowcount > 0
         finally:
             conn.close()
 
