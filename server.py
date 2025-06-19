@@ -2,15 +2,28 @@ from flask import Flask, request, jsonify, session, send_from_directory
 from functools import wraps
 from db.database import db
 import requests
+import redis
 import json
 import os
 from cachetools import TTLCache
+from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 app.secret_key = 'votre_clé_secrète_ici'  # À changer en production
 
+# Initialiser Redis
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
+CACHE_TTL = 3600  # 1 heure
+
+# Thread pool pour les requêtes asynchrones
+executor = ThreadPoolExecutor(max_workers=10)
+
 # Cache pour les modèles (validité 1 heure)
 models_cache = TTLCache(maxsize=100, ttl=3600)
+
+# Timeouts
+REQUEST_TIMEOUT = 5  # 5 secondes pour les requêtes normales
+CHAT_TIMEOUT = 30   # 30 secondes pour les requêtes de chat
 
 def login_required(f):
     @wraps(f)
@@ -73,12 +86,16 @@ def check_auth():
 @login_required
 def get_models():
     try:
-        # Vérifier le cache
-        if 'models' in models_cache:
-            return jsonify(models_cache['models'])
+        # Vérifier le cache Redis
+        cached_models = redis_client.get('models:list')
+        if cached_models:
+            return jsonify(json.loads(cached_models))
 
-        # Faire la requête à Ollama
-        response = requests.get('http://localhost:11434/api/tags')
+        # Faire la requête à Ollama avec timeout
+        response = requests.get(
+            'http://localhost:11434/api/tags',
+            timeout=REQUEST_TIMEOUT
+        )
 
         if response.status_code != 200:
             raise Exception('Erreur Ollama list')
@@ -91,9 +108,11 @@ def get_models():
                 'size': f"{model['size']/(1024*1024*1024):.1f} GB"
             })
 
-        # Mettre en cache
-        models_cache['models'] = models
+        # Mettre en cache Redis
+        redis_client.setex('models:list', CACHE_TTL, json.dumps(models))
         return jsonify(models)
+    except requests.Timeout:
+        return jsonify({'error': 'Temps de réponse dépassé'}), 504
     except Exception as e:
         app.logger.error(f'Erreur get_models: {str(e)}')
         return jsonify({'error': str(e)}), 500
@@ -103,23 +122,38 @@ def get_models():
 def chat():
     try:
         data = request.json
+        cache_key = f"chat:{data['model']}:{hash(str(data['messages']))}"
+
+        # Vérifier le cache Redis
+        cached_response = redis_client.get(cache_key)
+        if cached_response:
+            return jsonify(json.loads(cached_response)), 200
+
         response = requests.post(
             'http://localhost:11434/api/chat',
             json={
                 'model': data['model'],
                 'messages': data['messages'],
                 'stream': False
-            }
+            },
+            timeout=CHAT_TIMEOUT
         )
 
         if response.status_code != 200:
             raise Exception('Erreur API Ollama')
 
-        return jsonify(response.json()), 200
+        result = response.json()
+
+        # Mettre en cache Redis
+        redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+        return jsonify(result), 200
+    except requests.Timeout:
+        return jsonify({'error': 'Temps de réponse dépassé'}), 504
     except Exception as e:
         app.logger.error(f'Erreur chat: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
+# Routes des utilisateurs
 @app.route('/api/users', methods=['GET'])
 @login_required
 def get_users():
@@ -134,6 +168,9 @@ def create_user():
         return jsonify({'error': 'Accès non autorisé'}), 403
 
     data = request.json
+    if not data.get('username') or not data.get('password'):
+        return jsonify({'error': 'Données manquantes'}), 400
+
     success = db.create_user(
         data['username'],
         data['password'],
@@ -141,6 +178,7 @@ def create_user():
     )
 
     if success:
+        redis_client.delete('users:list')  # Invalider le cache
         return jsonify({'success': True})
     return jsonify({'error': 'Nom d\'utilisateur déjà pris'}), 400
 
@@ -151,6 +189,9 @@ def update_user(user_id):
         return jsonify({'error': 'Accès non autorisé'}), 403
 
     data = request.json
+    if not data.get('username'):
+        return jsonify({'error': 'Nom d\'utilisateur requis'}), 400
+
     success = db.update_user(
         user_id,
         data['username'],
@@ -159,6 +200,7 @@ def update_user(user_id):
     )
 
     if success:
+        redis_client.delete('users:list')  # Invalider le cache
         return jsonify({'success': True})
     return jsonify({'error': 'Erreur lors de la mise à jour'}), 400
 
@@ -170,6 +212,7 @@ def delete_user(user_id):
 
     success = db.delete_user(user_id)
     if success:
+        redis_client.delete('users:list')  # Invalider le cache
         return jsonify({'success': True})
     return jsonify({'error': 'Erreur lors de la suppression'}), 400
 
@@ -181,5 +224,6 @@ if __name__ == '__main__':
     app.run(
         host='127.0.0.1',
         port=5000,
-        debug=False
+        debug=False,
+        threaded=True
     )

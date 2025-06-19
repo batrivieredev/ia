@@ -3,25 +3,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const userModal = document.getElementById('user-modal');
     const userForm = document.getElementById('user-form');
     const addUserBtn = document.getElementById('add-user-btn');
-    const closeBtn = document.querySelector('.close-button');
-    const cancelBtn = document.getElementById('cancel-button');
     const searchInput = document.getElementById('search-users');
     const logoutButton = document.getElementById('logout-button');
     const usersTableBody = document.getElementById('users-table-body');
+    const modalTitle = document.getElementById('modal-title');
+
+    // Bootstrap Modal
+    const modal = new bootstrap.Modal(userModal);
+    const closeBtn = userModal.querySelector('.btn-close');
+    const cancelBtn = userModal.querySelector('.btn-outline-secondary');
 
     // Event Listeners
-    addUserBtn.addEventListener('click', () => openModal());
+    addUserBtn.addEventListener('click', openModal);
+    userForm.addEventListener('submit', handleUserSubmit);
+    searchInput.addEventListener('input', handleSearch);
+    logoutButton.addEventListener('click', handleLogout);
     closeBtn.addEventListener('click', closeModal);
     cancelBtn.addEventListener('click', closeModal);
-    userForm.addEventListener('submit', handleUserSubmit);
-    searchInput.addEventListener('input', debounce(handleSearch, 300));
-    logoutButton.addEventListener('click', handleLogout);
 
-    // Vérifier l'authentification admin
-    checkAdminAuth();
-
+    // Variables
     let editingUserId = null;
     let users = [];
+
+    // Check auth and load users
+    checkAdminAuth();
 
     async function checkAdminAuth() {
         try {
@@ -31,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!data.authenticated || !data.is_admin) {
                 window.location.href = '/login.html';
             } else {
-                loadUsers();
+                await loadUsers();
             }
         } catch (error) {
             console.error('Erreur auth:', error);
@@ -42,28 +47,36 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadUsers() {
         try {
             const response = await fetch('/api/users');
+            if (!response.ok) {
+                throw new Error('Erreur lors du chargement des utilisateurs');
+            }
             users = await response.json();
             renderUsers(users);
         } catch (error) {
-            console.error('Erreur chargement utilisateurs:', error);
+            console.error('Erreur:', error);
+            alert(error.message);
         }
     }
 
     function renderUsers(usersToRender) {
         usersTableBody.innerHTML = usersToRender.map(user => `
             <tr>
-                <td>${user.username}</td>
-                <td>${new Date(user.created_at).toLocaleDateString('fr-FR')}</td>
+                <td>${escapeHtml(user.username)}</td>
+                <td>${formatDate(user.created_at)}</td>
                 <td>
-                    <span class="${user.is_admin ? 'success-color' : 'text-secondary'}">
+                    <span class="badge ${user.is_admin ? 'badge-success' : 'badge-secondary'}">
                         ${user.is_admin ? 'Oui' : 'Non'}
                     </span>
                 </td>
                 <td>
                     <div class="user-actions">
-                        <button onclick="editUser(${user.id})" class="secondary-button">Modifier</button>
+                        <button onclick="editUser(${user.id})" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-pencil"></i> Modifier
+                        </button>
                         ${user.username !== 'admin' ?
-                            `<button onclick="deleteUser(${user.id})" class="danger-button">Supprimer</button>`
+                            `<button onclick="deleteUser(${user.id})" class="btn btn-danger btn-sm">
+                                <i class="bi bi-trash"></i> Supprimer
+                            </button>`
                             : ''
                         }
                     </div>
@@ -76,10 +89,20 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
 
         const formData = {
-            username: document.getElementById('username').value,
+            username: document.getElementById('username').value.trim(),
             password: document.getElementById('password').value,
             is_admin: document.getElementById('is-admin').checked
         };
+
+        if (!formData.username) {
+            alert("Le nom d'utilisateur est requis");
+            return;
+        }
+
+        if (!editingUserId && !formData.password) {
+            alert("Le mot de passe est requis pour un nouvel utilisateur");
+            return;
+        }
 
         try {
             const url = editingUserId ? `/api/users/${editingUserId}` : '/api/users';
@@ -91,13 +114,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(formData)
             });
 
-            if (!response.ok) throw new Error('Erreur réseau');
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Une erreur s'est produite");
+            }
 
             await loadUsers();
             closeModal();
         } catch (error) {
             console.error('Erreur:', error);
-            alert("Une erreur s'est produite");
+            alert(error.message);
         }
     }
 
@@ -106,12 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const user = users.find(u => u.id === userId);
 
         if (user) {
-            document.getElementById('modal-title').textContent = 'Modifier l\'utilisateur';
+            modalTitle.textContent = "Modifier l'utilisateur";
             document.getElementById('username').value = user.username;
             document.getElementById('password').value = '';
             document.getElementById('is-admin').checked = user.is_admin;
-            document.querySelector('.password-notice').style.display = 'block';
-            openModal();
+            modal.show();
         }
     };
 
@@ -123,12 +149,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'DELETE'
             });
 
-            if (!response.ok) throw new Error('Erreur réseau');
+            if (!response.ok) {
+                throw new Error('Erreur lors de la suppression');
+            }
 
             await loadUsers();
         } catch (error) {
             console.error('Erreur:', error);
-            alert("Une erreur s'est produite");
+            alert(error.message);
         }
     };
 
@@ -150,30 +178,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function openModal() {
-        if (!editingUserId) {
-            document.getElementById('modal-title').textContent = 'Nouvel utilisateur';
-            userForm.reset();
-            document.querySelector('.password-notice').style.display = 'none';
-        }
-        userModal.classList.add('active');
+        editingUserId = null;
+        modalTitle.textContent = 'Nouvel utilisateur';
+        userForm.reset();
+        modal.show();
     }
 
     function closeModal() {
-        userModal.classList.remove('active');
-        editingUserId = null;
+        modal.hide();
         userForm.reset();
+        editingUserId = null;
     }
 
-    // Utility
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
+    // Utility functions
+    function formatDate(dateString) {
+        return new Date(dateString).toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    }
+
+    function escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 });

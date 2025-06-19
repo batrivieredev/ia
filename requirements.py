@@ -27,6 +27,35 @@ def install_package(package, use_pip=False):
         print(f"✗ Erreur lors de l'installation de {package}")
         return False
 
+def setup_redis():
+    """Configure et démarre Redis"""
+    print("\nConfiguration de Redis...")
+
+    # Installer Redis si nécessaire
+    if not check_command('redis-server'):
+        if not install_package('redis-server'):
+            return False
+    print("✓ Redis est installé")
+
+    # Démarrer Redis
+    print("Démarrage de Redis...")
+    try:
+        subprocess.run(['systemctl', 'start', 'redis-server'], check=True)
+        time.sleep(2)
+        print("✓ Redis démarré")
+    except subprocess.CalledProcessError:
+        print("✗ Impossible de démarrer Redis")
+        return False
+
+    # Activer Redis au démarrage
+    try:
+        subprocess.run(['systemctl', 'enable', 'redis-server'], check=True)
+        print("✓ Redis activé au démarrage")
+    except subprocess.CalledProcessError:
+        print("! Note: Redis ne démarrera pas automatiquement au reboot")
+
+    return True
+
 def setup_mysql():
     """Configure et démarre MySQL"""
     print("\nConfiguration de MySQL...")
@@ -98,25 +127,20 @@ def check_and_install_requirements():
             return False
     print("✓ pip3 est installé")
 
-    # Installer les dépendances Python requises
-    required_packages = [
-        'flask',
-        'flask-socketio',
-        'python-socketio',
-        'python-engineio',
-        'requests',
-        'mysql-connector-python',
-        'cachetools',
-        'eventlet'
-    ]
+    # Installer les dépendances de compilation
+    build_deps = ['python3-dev', 'build-essential', 'libssl-dev', 'libffi-dev']
+    for dep in build_deps:
+        if not install_package(dep):
+            return False
+        print(f"✓ {dep} est installé")
 
-    for package in required_packages:
-        try:
-            __import__(package.replace('-', '_'))
-            print(f"✓ {package} est installé")
-        except ImportError:
-            if not install_package(package, use_pip=True):
-                return False
+    # Installer les dépendances Python requises
+    with open('requirements.txt', 'r') as f:
+        requirements = f.read().splitlines()
+
+    for requirement in requirements:
+        if not install_package(requirement, use_pip=True):
+            return False
 
     # Vérifier curl
     if not check_command('curl'):
@@ -131,6 +155,10 @@ def check_and_install_requirements():
         print("Pour installer Ollama, suivez les instructions sur: https://ollama.ai/download")
         return False
     print("✓ Ollama est installé")
+
+    # Configurer Redis
+    if not setup_redis():
+        return False
 
     # Configurer MySQL
     if not setup_mysql():
