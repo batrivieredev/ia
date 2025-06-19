@@ -16,13 +16,9 @@ class Database:
             'password': 'ia_password'
         }
 
-        try:
-            # Initialize connection pool
-            self.pool = mysql.connector.pooling.MySQLConnectionPool(**self.pool_config)
-            self.init_db()
-        except Error as e:
-            print(f"Erreur de connexion à la base de données: {str(e)}")
-            raise
+        # Initialize connection pool
+        self.pool = mysql.connector.pooling.MySQLConnectionPool(**self.pool_config)
+        self.init_db()
 
     def init_db(self):
         """Initialize the database with schema"""
@@ -35,16 +31,17 @@ class Database:
 
                 # Exécuter chaque commande séparément
                 for statement in sql.split(';'):
-                    if statement.strip():
+                    statement = statement.strip()
+                    if statement:
                         try:
                             cursor.execute(statement)
                         except Error as e:
-                            # Ignorer les erreurs de clé dupliquée ou de table existante
-                            if not (e.errno == 1061 or e.errno == 1050):
+                            # Ignorer les erreurs de table existante
+                            if e.errno != 1050:  # Table already exists
                                 raise
             conn.commit()
         except Error as e:
-            print(f"Erreur d'initialisation de la base de données: {str(e)}")
+            print(f"Erreur lors de l'initialisation: {e}")
             conn.rollback()
             raise
         finally:
@@ -80,7 +77,7 @@ class Database:
 
                 # Convert datetime objects to string for JSON serialization
                 for user in users:
-                    user['created_at'] = user['created_at'].isoformat()
+                    user['created_at'] = user['created_at'].isoformat() if user['created_at'] else None
                 return users
         finally:
             conn.close()
@@ -142,6 +139,6 @@ class Database:
 try:
     # Initialize database on import
     db = Database()
-except Exception as e:
+except Error as e:
     print(f"Erreur fatale lors de l'initialisation de la base de données: {str(e)}")
     raise

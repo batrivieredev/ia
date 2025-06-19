@@ -11,6 +11,3 @@ CREATE TABLE IF NOT EXISTS users (
 -- Création de l'admin par défaut si n'existe pas
 INSERT IGNORE INTO users (username, password, is_admin)
 VALUES ('admin', 'admin', TRUE);
-
--- Vider le cache après les modifications
-FLUSH TABLES users;
