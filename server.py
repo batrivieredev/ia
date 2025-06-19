@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, session, send_from_directory
-from flask_socketio import SocketIO, emit
 from functools import wraps
 from db.database import db
 import requests
@@ -9,7 +8,6 @@ from cachetools import TTLCache
 
 app = Flask(__name__)
 app.secret_key = 'votre_clé_secrète_ici'  # À changer en production
-socketio = SocketIO(app, path='/ws/socket.io', cors_allowed_origins="*")
 
 # Cache pour les modèles (validité 1 heure)
 models_cache = TTLCache(maxsize=100, ttl=3600)
@@ -111,52 +109,76 @@ def chat():
                 'model': data['model'],
                 'messages': data['messages'],
                 'stream': False
-            },
-            headers={'Content-Type': 'application/json'}
+            }
         )
 
         if response.status_code != 200:
             raise Exception('Erreur API Ollama')
 
-        return response.json(), 200
+        return jsonify(response.json()), 200
     except Exception as e:
         app.logger.error(f'Erreur chat: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
-# WebSocket routes
-@socketio.on('chat_message')
-def handle_message(data):
-    try:
-        response = requests.post(
-            'http://localhost:11434/api/chat',
-            json={
-                'model': data['model'],
-                'messages': data['messages'],
-                'stream': True
-            },
-            headers={'Content-Type': 'application/json'},
-            stream=True
-        )
+@app.route('/api/users', methods=['GET'])
+@login_required
+def get_users():
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Accès non autorisé'}), 403
+    return jsonify(db.get_users())
 
-        for line in response.iter_lines():
-            if line:
-                message = json.loads(line)
-                if 'done' in message and message['done']:
-                    emit('chat_done')
-                else:
-                    emit('chat_response', {'content': message.get('message', {}).get('content', '')})
+@app.route('/api/users', methods=['POST'])
+@login_required
+def create_user():
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Accès non autorisé'}), 403
 
-    except Exception as e:
-        app.logger.error(f'Erreur WebSocket: {str(e)}')
-        emit('chat_error', {'error': str(e)})
+    data = request.json
+    success = db.create_user(
+        data['username'],
+        data['password'],
+        data.get('is_admin', False)
+    )
+
+    if success:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Nom d\'utilisateur déjà pris'}), 400
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@login_required
+def update_user(user_id):
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Accès non autorisé'}), 403
+
+    data = request.json
+    success = db.update_user(
+        user_id,
+        data['username'],
+        data.get('password'),
+        data.get('is_admin', False)
+    )
+
+    if success:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Erreur lors de la mise à jour'}), 400
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+def delete_user(user_id):
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Accès non autorisé'}), 403
+
+    success = db.delete_user(user_id)
+    if success:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Erreur lors de la suppression'}), 400
 
 if __name__ == '__main__':
     # Ensure logs directory exists
     os.makedirs('logs', exist_ok=True)
 
-    # Run with WebSocket support
-    socketio.run(
-        app,
+    # Run in production mode
+    app.run(
         host='127.0.0.1',
         port=5000,
         debug=False

@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Elements
-    const chatContainer = document.getElementById('chat-container');
     const chatForm = document.getElementById('chat-form');
     const logoutButton = document.getElementById('logout-button');
     const modelSelect = document.getElementById('model-select');
@@ -13,9 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Templates
     const messageTemplate = document.getElementById('message-template');
     const loadingTemplate = document.getElementById('loading-template');
-
-    // Socket.IO
-    let socket = null;
 
     // Event Listeners
     chatForm.addEventListener('submit', handleMessage);
@@ -35,7 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.href = '/login.html';
             } else {
                 loadModels();
-                initializeSocket();
             }
         } catch (error) {
             console.error('Erreur auth:', error);
@@ -43,44 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function initializeSocket() {
-        socket = io({
-            path: '/ws/socket.io'
-        });
-
-        socket.on('connect', () => {
-            console.log('WebSocket connecté');
-        });
-
-        socket.on('chat_response', (data) => {
-            const loadingElement = messagesContainer.querySelector('.loading')?.parentElement;
-            if (loadingElement) {
-                loadingElement.remove();
-            }
-            appendAssistantMessage(data.content);
-        });
-
-        socket.on('chat_done', () => {
-            setFormState(false);
-        });
-
-        socket.on('chat_error', (error) => {
-            console.error('Erreur chat:', error);
-            const loadingElement = messagesContainer.querySelector('.loading')?.parentElement;
-            if (loadingElement) {
-                loadingElement.remove();
-            }
-            appendAssistantMessage("Une erreur s'est produite");
-            setFormState(false);
-        });
-    }
-
     async function handleLogout() {
         try {
             await fetch('/api/auth/logout', { method: 'POST' });
-            if (socket) {
-                socket.disconnect();
-            }
             window.location.href = '/login.html';
         } catch (error) {
             console.error('Erreur logout:', error);
@@ -112,40 +72,32 @@ document.addEventListener('DOMContentLoaded', () => {
         messagesContainer.appendChild(loadingIndicator);
         scrollToBottom();
 
-        if (socket && socket.connected) {
-            // Utiliser WebSocket pour le streaming
-            socket.emit('chat_message', {
-                model: selectedModel,
-                messages: [{ role: 'user', content: message }]
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: selectedModel,
+                    messages: [{ role: 'user', content: message }]
+                })
             });
-        } else {
-            // Fallback sur HTTP si WebSocket n'est pas disponible
-            try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: selectedModel,
-                        messages: [{ role: 'user', content: message }]
-                    })
-                });
 
-                const loadingElement = messagesContainer.querySelector('.loading')?.parentElement;
-                if (loadingElement) {
-                    loadingElement.remove();
-                }
-
-                if (!response.ok) throw new Error('Erreur réseau');
-
-                const data = await response.json();
-                addMessage(data.message.content, false);
-
-            } catch (error) {
-                console.error('Erreur:', error);
-                addMessage("Une erreur s'est produite", false);
-            } finally {
-                setFormState(false);
+            // Supprimer l'indicateur de chargement
+            const loadingElement = messagesContainer.querySelector('.loading')?.parentElement;
+            if (loadingElement) {
+                loadingElement.remove();
             }
+
+            if (!response.ok) throw new Error('Erreur réseau');
+
+            const data = await response.json();
+            addMessage(data.message.content, false);
+
+        } catch (error) {
+            console.error('Erreur:', error);
+            addMessage("Une erreur s'est produite", false);
+        } finally {
+            setFormState(false);
         }
     }
 
@@ -194,18 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         messagesContainer.appendChild(messageElement);
-        scrollToBottom();
-    }
-
-    function appendAssistantMessage(content) {
-        const lastMessage = messagesContainer.querySelector('.message.assistant:last-child');
-
-        if (lastMessage) {
-            const contentDiv = lastMessage.querySelector('.message-content');
-            contentDiv.textContent += content;
-        } else {
-            addMessage(content, false);
-        }
         scrollToBottom();
     }
 
