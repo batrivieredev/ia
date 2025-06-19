@@ -37,6 +37,32 @@ def setup_postgresql():
             return False
     print("✓ PostgreSQL est installé")
 
+    # Initialiser le cluster PostgreSQL
+    try:
+        cluster_exists = subprocess.run(
+            ['pg_lsclusters'],
+            capture_output=True,
+            text=True
+        ).stdout.strip()
+
+        if not cluster_exists:
+            print("Initialisation du cluster PostgreSQL...")
+            version = subprocess.run(
+                ['pg_config', '--version'],
+                capture_output=True,
+                text=True
+            ).stdout.split()[1]
+
+            subprocess.run([
+                'pg_createcluster',
+                version,
+                'main'
+            ], check=True)
+            print("✓ Cluster PostgreSQL initialisé")
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Erreur lors de l'initialisation du cluster: {str(e)}")
+        return False
+
     # Démarrer PostgreSQL
     print("Démarrage de PostgreSQL...")
     try:
@@ -55,32 +81,26 @@ def setup_postgresql():
     except subprocess.CalledProcessError:
         print("! Note: PostgreSQL ne démarrera pas automatiquement au reboot")
 
-    # Configurer l'authentification
-    pg_hba_path = "/etc/postgresql/*/main/pg_hba.conf"
-    try:
-        # Trouver le fichier pg_hba.conf
-        pg_hba_files = subprocess.run(['ls', '-d', pg_hba_path], capture_output=True, text=True).stdout.strip().split('\n')
-        if pg_hba_files:
-            pg_hba_file = pg_hba_files[0]
-            # Ajouter la configuration
-            with open(pg_hba_file, 'a') as f:
-                f.write("\nhost    ia_chat         ia_user         127.0.0.1/32            md5\n")
-            print("✓ Configuration de l'authentification mise à jour")
-
-            # Redémarrer PostgreSQL pour appliquer les changements
-            subprocess.run(['systemctl', 'restart', 'postgresql'], check=True)
-            time.sleep(5)
-    except Exception as e:
-        print(f"! Note: Erreur lors de la configuration de pg_hba.conf: {str(e)}")
-
     # Créer l'utilisateur et la base de données
     try:
+        # Attendre que le socket soit disponible
+        for _ in range(10):
+            if os.path.exists('/var/run/postgresql/.s.PGSQL.5432'):
+                break
+            time.sleep(1)
+
         subprocess.run([
             'sudo', '-u', 'postgres', 'psql',
             '-c', "CREATE USER ia_user WITH PASSWORD 'ia_password';",
             '-c', "CREATE DATABASE ia_chat OWNER ia_user;"
         ], check=True)
         print("✓ Utilisateur et base de données créés")
+
+        # Configurer l'authentification
+        subprocess.run([
+            'sudo', '-u', 'postgres', 'psql',
+            '-c', "ALTER USER ia_user WITH PASSWORD 'ia_password';"
+        ], check=True)
 
         # Initialiser la base avec le schéma
         subprocess.run([
@@ -91,10 +111,33 @@ def setup_postgresql():
         print("✓ Schéma de la base de données initialisé")
     except subprocess.CalledProcessError as e:
         if "already exists" not in str(e.stderr):
-            print("✗ Erreur lors de la création de la base de données")
+            print(f"✗ Erreur lors de la création de la base de données: {str(e)}")
             return False
         else:
             print("✓ La base de données existe déjà")
+
+    # Configuration de pg_hba.conf
+    try:
+        pg_version = subprocess.run(
+            ['pg_config', '--version'],
+            capture_output=True,
+            text=True
+        ).stdout.split()[1].split('.')[0]
+
+        pg_hba_path = f"/etc/postgresql/{pg_version}/main/pg_hba.conf"
+
+        if os.path.exists(pg_hba_path):
+            with open(pg_hba_path, 'a') as f:
+                f.write("\nhost    ia_chat         ia_user         127.0.0.1/32            md5\n")
+            print("✓ Configuration de l'authentification mise à jour")
+
+            # Redémarrer PostgreSQL pour appliquer les changements
+            subprocess.run(['systemctl', 'restart', 'postgresql'], check=True)
+            time.sleep(5)
+        else:
+            print(f"! Note: pg_hba.conf non trouvé à {pg_hba_path}")
+    except Exception as e:
+        print(f"! Note: Erreur lors de la configuration de pg_hba.conf: {str(e)}")
 
     return True
 

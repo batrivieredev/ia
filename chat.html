@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat IA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="chat.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="header-left">
+                <div class="model-selector">
+                    <label for="model-select">Modèle IA</label>
+                    <select id="model-select" required>
+                        <option value="" disabled selected>Sélectionner un modèle</option>
+                        <!-- Les modèles seront chargés dynamiquement -->
+                    </select>
+                </div>
+            </div>
+            <div class="header-right">
+                <button id="logout-button" class="logout-button">
+                    Se déconnecter
+                </button>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="welcome-message">
+                <h1>Assistant IA</h1>
+                <p>Sélectionnez un modèle pour commencer la conversation</p>
+            </div>
+        </div>
+
+        <div class="chat-input">
+            <form id="chat-form">
+                <div class="input-container">
+                    <textarea
+                        id="message-input"
+                        placeholder="Tapez votre message ici..."
+                        rows="1"
+                        maxlength="2000"
+                        required
+                    ></textarea>
+                    <div class="char-counter">2000</div>
+                </div>
+                <button type="submit" id="send-button" disabled>
+                    Envoyer
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Templates -->
+    <template id="message-template">
+        <div class="message">
+            <div class="message-content"></div>
+            <div class="message-time"></div>
+        </div>
+    </template>
+
+    <template id="loading-template">
+        <div class="message assistant">
+            <div class="loading">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </template>
+
+    <script src="chat.js"></script>
+</body>
+</html>
