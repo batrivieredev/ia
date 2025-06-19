@@ -10,97 +10,93 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Login Form -->
+    <!-- Login Section -->
     <div id="login-container" class="container">
-        <div class="form-card">
-            <h1>Connexion</h1>
-            <form id="login-form">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>Assistant IA</h1>
+                <p>Connectez-vous pour accéder au chat</p>
+            </div>
+            <form id="login-form" class="login-form">
                 <div class="form-group">
-                    <input type="text" id="username" required placeholder="Nom d'utilisateur">
+                    <label for="username">Nom d'utilisateur</label>
+                    <input type="text" id="username" required>
                 </div>
                 <div class="form-group">
-                    <input type="password" id="password" required placeholder="Mot de passe">
+                    <label for="password">Mot de passe</label>
+                    <input type="password" id="password" required>
+                </div>
+                <div class="form-error hidden">
+                    Identifiants incorrects
                 </div>
                 <button type="submit">Se connecter</button>
             </form>
         </div>
     </div>
 
-    <!-- Admin Panel -->
-    <div id="admin-container" class="container hidden">
-        <div class="admin-card">
-            <div class="admin-header">
-                <h1>Administration</h1>
-                <button id="return-to-chat" class="secondary-button">Retour au chat</button>
-                <button id="logout-button" class="secondary-button">Déconnexion</button>
-            </div>
-            <div class="admin-content">
-                <div class="users-section">
-                    <h2>Utilisateurs</h2>
-                    <button id="add-user-button" class="primary-button">Ajouter un utilisateur</button>
-                    <div class="users-list" id="users-list">
-                        <!-- Users will be listed here -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Chat Interface -->
+    <!-- Chat Section -->
     <div id="chat-container" class="container hidden">
         <div class="chat-card">
             <div class="chat-header">
-                <div class="model-selector">
-                    <select id="model-select">
-                        <option value="">Sélectionner un modèle</option>
-                    </select>
+                <div class="header-left">
+                    <div class="model-selector">
+                        <label for="model-select">Modèle IA</label>
+                        <select id="model-select" required>
+                            <option value="" disabled selected>Sélectionner un modèle</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="header-buttons">
-                    <button id="admin-button" class="secondary-button hidden">Administration</button>
-                    <button id="chat-logout-button" class="secondary-button">Déconnexion</button>
+                <div class="header-right">
+                    <button id="logout-button" class="logout-button">
+                        Se déconnecter
+                    </button>
                 </div>
             </div>
+
             <div class="chat-messages" id="chat-messages">
-                <!-- Messages will be listed here -->
+                <div class="welcome-message">
+                    <h1>Bienvenue dans l'interface de chat IA</h1>
+                    <p>Sélectionnez un modèle pour commencer la conversation</p>
+                </div>
             </div>
-            <div class="chat-input-container">
-                <textarea
-                    id="user-input"
-                    placeholder="Tapez votre message ici..."
-                    rows="1"
-                    maxlength="2000"
-                ></textarea>
-                <button id="send-button">
-                    Envoyer
-                </button>
+
+            <div class="chat-input">
+                <form id="chat-form">
+                    <div class="input-container">
+                        <textarea
+                            id="message-input"
+                            placeholder="Tapez votre message ici..."
+                            rows="1"
+                            maxlength="2000"
+                            required
+                        ></textarea>
+                        <div class="char-counter">2000</div>
+                    </div>
+                    <button type="submit" id="send-button" disabled>
+                        Envoyer
+                    </button>
+                </form>
             </div>
         </div>
     </div>
 
-    <!-- User Modal -->
-    <div id="user-modal" class="modal hidden">
-        <div class="modal-content">
-            <h2 id="modal-title">Ajouter un utilisateur</h2>
-            <form id="user-form">
-                <div class="form-group">
-                    <input type="text" id="modal-username" required placeholder="Nom d'utilisateur">
-                </div>
-                <div class="form-group">
-                    <input type="password" id="modal-password" placeholder="Mot de passe">
-                </div>
-                <div class="form-group checkbox">
-                    <label>
-                        <input type="checkbox" id="modal-is-admin">
-                        Administrateur
-                    </label>
-                </div>
-                <div class="modal-buttons">
-                    <button type="button" id="modal-cancel" class="secondary-button">Annuler</button>
-                    <button type="submit" id="modal-submit" class="primary-button">Sauvegarder</button>
-                </div>
-            </form>
+    <!-- Templates -->
+    <template id="message-template">
+        <div class="message">
+            <div class="message-content"></div>
+            <div class="message-time"></div>
         </div>
-    </div>
+    </template>
+
+    <template id="loading-template">
+        <div class="message assistant">
+            <div class="loading">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </template>
 
     <script src="script.js"></script>
 </body>

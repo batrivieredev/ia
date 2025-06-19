@@ -1,114 +1,98 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Elements
     const loginContainer = document.getElementById('login-container');
-    const adminContainer = document.getElementById('admin-container');
     const chatContainer = document.getElementById('chat-container');
     const loginForm = document.getElementById('login-form');
-    const adminButton = document.getElementById('admin-button');
-    const returnToChatButton = document.getElementById('return-to-chat');
-    const logoutButtons = document.querySelectorAll('#logout-button, #chat-logout-button');
-    const usersList = document.getElementById('users-list');
-    const addUserButton = document.getElementById('add-user-button');
-    const userModal = document.getElementById('user-modal');
-    const userForm = document.getElementById('user-form');
-    const modalCancel = document.getElementById('modal-cancel');
+    const chatForm = document.getElementById('chat-form');
+    const logoutButton = document.getElementById('logout-button');
     const modelSelect = document.getElementById('model-select');
-    const chatMessages = document.getElementById('chat-messages');
-    const userInput = document.getElementById('user-input');
+    const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-button');
+    const messagesContainer = document.getElementById('chat-messages');
+    const formError = document.querySelector('.form-error');
+    const charCounter = document.querySelector('.char-counter');
+    const maxLength = parseInt(messageInput.getAttribute('maxlength')) || 2000;
 
-    let currentUserId = null;
-    let isAdmin = false;
+    // Templates
+    const messageTemplate = document.getElementById('message-template');
+    const loadingTemplate = document.getElementById('loading-template');
 
-    // Auth Management
-    loginForm.addEventListener('submit', async (e) => {
+    // Event Listeners
+    loginForm.addEventListener('submit', handleLogin);
+    chatForm.addEventListener('submit', handleMessage);
+    logoutButton.addEventListener('click', handleLogout);
+    messageInput.addEventListener('input', handleInput);
+    modelSelect.addEventListener('change', handleModelSelect);
+
+    // Auth Handlers
+    async function handleLogin(e) {
         e.preventDefault();
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
+        const submitButton = loginForm.querySelector('button[type="submit"]');
+
+        submitButton.disabled = true;
+        formError.classList.add('hidden');
 
         try {
-            const response = await fetch('/api/login', {
+            const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
+
             const data = await response.json();
 
             if (data.success) {
-                isAdmin = data.is_admin;
                 showChat();
-                if (isAdmin) {
-                    adminButton.classList.remove('hidden');
-                }
                 loadModels();
+                loginForm.reset();
             } else {
-                alert('Identifiants invalides');
+                formError.classList.remove('hidden');
+                loginForm.querySelector('input[type="password"]').value = '';
             }
         } catch (error) {
             console.error('Erreur:', error);
-            alert('Erreur de connexion');
+            formError.textContent = 'Erreur de connexion';
+            formError.classList.remove('hidden');
+        } finally {
+            submitButton.disabled = false;
         }
-    });
-
-    logoutButtons.forEach(button => {
-        button.addEventListener('click', async () => {
-            await fetch('/api/logout', { method: 'POST' });
-            showLogin();
-        });
-    });
-
-    // Navigation
-    function showLogin() {
-        loginContainer.classList.remove('hidden');
-        adminContainer.classList.add('hidden');
-        chatContainer.classList.add('hidden');
-        adminButton.classList.add('hidden');
-        isAdmin = false;
-        currentUserId = null;
     }
 
-    function showAdmin() {
-        loginContainer.classList.add('hidden');
-        adminContainer.classList.remove('hidden');
-        chatContainer.classList.add('hidden');
-        loadUsers();
-    }
-
-    function showChat() {
-        loginContainer.classList.add('hidden');
-        adminContainer.classList.add('hidden');
-        chatContainer.classList.remove('hidden');
-    }
-
-    adminButton.addEventListener('click', showAdmin);
-    returnToChatButton.addEventListener('click', showChat);
-
-    // Models Management
-    async function loadModels() {
+    async function handleLogout() {
         try {
-            const response = await fetch('/api/models');
-            const models = await response.json();
-            modelSelect.innerHTML = '<option value="">Sélectionner un modèle</option>' +
-                models.map(model => `
-                    <option value="${model.name}">${model.name} (${model.size})</option>
-                `).join('');
+            await fetch('/api/auth/logout', { method: 'POST' });
+            showLogin();
         } catch (error) {
-            console.error('Erreur chargement modèles:', error);
+            console.error('Erreur de déconnexion:', error);
         }
     }
 
-    // Chat Management
-    let chatHistory = [];
+    // Chat Handlers
+    async function handleMessage(e) {
+        e.preventDefault();
 
-    async function sendMessage() {
-        const message = userInput.value.trim();
+        const message = messageInput.value.trim();
         const selectedModel = modelSelect.value;
 
         if (!message || !selectedModel) return;
 
+        // Disable interface while sending
+        setFormState(true);
+
+        // Add user message
         addMessage(message, true);
-        userInput.value = '';
-        userInput.style.height = 'auto';
+
+        // Reset input
+        messageInput.value = '';
+        updateCharCounter();
+        adjustTextareaHeight();
+
+        // Show loading indicator
+        const loadingIndicator = loadingTemplate.content.cloneNode(true);
+        messagesContainer.appendChild(loadingIndicator);
+        scrollToBottom();
 
         try {
             const response = await fetch('/api/chat', {
@@ -120,139 +104,116 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
             });
 
+            // Remove loading indicator
+            const loadingElement = messagesContainer.querySelector('.loading').parentElement;
+            loadingElement.remove();
+
             if (!response.ok) throw new Error('Erreur réseau');
 
             const data = await response.json();
             addMessage(data.message.content, false);
+
         } catch (error) {
             console.error('Erreur:', error);
-            addMessage("Désolé, une erreur s'est produite", false);
+            addMessage("Une erreur s'est produite", false);
+        } finally {
+            setFormState(false);
+        }
+    }
+
+    // UI Handlers
+    function showLogin() {
+        loginContainer.classList.remove('hidden');
+        chatContainer.classList.add('hidden');
+        loginForm.reset();
+        document.getElementById('username').focus();
+    }
+
+    function showChat() {
+        loginContainer.classList.add('hidden');
+        chatContainer.classList.remove('hidden');
+        messageInput.focus();
+    }
+
+    function handleInput() {
+        updateCharCounter();
+        adjustTextareaHeight();
+        sendButton.disabled = !messageInput.value.trim() || !modelSelect.value;
+    }
+
+    function handleModelSelect() {
+        sendButton.disabled = !messageInput.value.trim() || !modelSelect.value;
+        if (modelSelect.value) {
+            document.querySelector('.welcome-message')?.remove();
+        }
+    }
+
+    // Utility Functions
+    async function loadModels() {
+        try {
+            const response = await fetch('/api/models');
+            const models = await response.json();
+
+            modelSelect.innerHTML = `
+                <option value="" disabled selected>Sélectionner un modèle</option>
+                ${models.map(model => `
+                    <option value="${model.name}">${model.name} (${model.size})</option>
+                `).join('')}
+            `;
+        } catch (error) {
+            console.error('Erreur chargement modèles:', error);
+            addMessage("Impossible de charger les modèles", false);
         }
     }
 
     function addMessage(content, isUser) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
-        messageDiv.textContent = content;
-        chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        chatHistory.push({ role: isUser ? 'user' : 'assistant', content });
+        const messageElement = messageTemplate.content.cloneNode(true);
+        const messageDiv = messageElement.querySelector('.message');
+        const contentDiv = messageElement.querySelector('.message-content');
+        const timeDiv = messageElement.querySelector('.message-time');
+
+        messageDiv.classList.add(isUser ? 'user' : 'assistant');
+        contentDiv.textContent = content;
+        timeDiv.textContent = new Date().toLocaleTimeString('fr-FR', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        messagesContainer.appendChild(messageElement);
+        scrollToBottom();
     }
 
-    sendButton.addEventListener('click', sendMessage);
-    userInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-
-    // Users Management
-    async function loadUsers() {
-        try {
-            const response = await fetch('/api/users');
-            const users = await response.json();
-            usersList.innerHTML = users.map(user => `
-                <div class="user-item">
-                    <div class="user-info">
-                        <span class="username">${user.username}</span>
-                        <span class="created-at">Créé le ${new Date(user.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <div class="user-actions">
-                        <button onclick="editUser(${user.id})" class="secondary-button">Modifier</button>
-                        <button onclick="deleteUser(${user.id})" class="secondary-button">Supprimer</button>
-                    </div>
-                </div>
-            `).join('');
-        } catch (error) {
-            console.error('Erreur chargement utilisateurs:', error);
-        }
+    function setFormState(disabled) {
+        messageInput.disabled = disabled;
+        sendButton.disabled = disabled;
+        modelSelect.disabled = disabled;
     }
 
-    async function saveUser(e) {
-        e.preventDefault();
-        const username = document.getElementById('modal-username').value;
-        const password = document.getElementById('modal-password').value;
-        const isAdmin = document.getElementById('modal-is-admin').checked;
+    function updateCharCounter() {
+        const remaining = maxLength - messageInput.value.length;
+        charCounter.textContent = remaining;
+        charCounter.style.color = remaining < 100 ? 'var(--error-color)' : '';
+    }
 
-        const userData = { username, password, is_admin: isAdmin };
-        const url = currentUserId ?
-            `/api/users/${currentUserId}` : '/api/users';
-        const method = currentUserId ? 'PUT' : 'POST';
+    function adjustTextareaHeight() {
+        messageInput.style.height = 'auto';
+        messageInput.style.height = `${Math.min(messageInput.scrollHeight, 200)}px`;
+    }
 
-        try {
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(userData)
-            });
+    function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
 
-            if (response.ok) {
-                closeModal();
-                loadUsers();
+    // Check auth status on load
+    fetch('/api/auth/check')
+        .then(response => response.json())
+        .then(data => {
+            if (data.authenticated) {
+                showChat();
+                loadModels();
             } else {
-                const error = await response.json();
-                alert(error.error);
+                showLogin();
             }
-        } catch (error) {
-            console.error('Erreur:', error);
-            alert('Erreur lors de la sauvegarde');
-        }
-    }
-
-    window.editUser = async (userId) => {
-        currentUserId = userId;
-        const response = await fetch(`/api/users/${userId}`);
-        const user = await response.json();
-
-        document.getElementById('modal-username').value = user.username;
-        document.getElementById('modal-password').value = '';
-        document.getElementById('modal-is-admin').checked = user.is_admin;
-
-        document.getElementById('modal-title').textContent = 'Modifier l\'utilisateur';
-        userModal.classList.remove('hidden');
-    };
-
-    window.deleteUser = async (userId) => {
-        if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) return;
-
-        try {
-            const response = await fetch(`/api/users/${userId}`, {
-                method: 'DELETE'
-            });
-
-            if (response.ok) {
-                loadUsers();
-            } else {
-                const error = await response.json();
-                alert(error.error);
-            }
-        } catch (error) {
-            console.error('Erreur:', error);
-            alert('Erreur lors de la suppression');
-        }
-    };
-
-    function closeModal() {
-        userModal.classList.add('hidden');
-        userForm.reset();
-        currentUserId = null;
-    }
-
-    addUserButton.addEventListener('click', () => {
-        document.getElementById('modal-title').textContent = 'Ajouter un utilisateur';
-        userModal.classList.remove('hidden');
-    });
-
-    modalCancel.addEventListener('click', closeModal);
-    userForm.addEventListener('submit', saveUser);
-
-    // Textarea auto-resize
-    userInput.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
-    });
-
-    // Initial state
-    showLogin();
+        })
+        .catch(() => showLogin());
 });
