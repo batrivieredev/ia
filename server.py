@@ -27,13 +27,29 @@ def static_files(path):
 # Routes d'authentification
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    data = request.json
-    user = db.verify_user(data['username'], data['password'])
-    if user:
-        session['user_id'] = user[0]
-        session['is_admin'] = user[1]
-        return jsonify({'success': True, 'authenticated': True})
-    return jsonify({'error': 'Identifiants invalides', 'authenticated': False}), 401
+    try:
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({'error': 'Identifiants manquants'}), 400
+
+        user = db.verify_user(username, password)
+
+        if user:
+            session['user_id'] = user[0]
+            session['is_admin'] = user[1]
+            return jsonify({
+                'success': True,
+                'authenticated': True,
+                'is_admin': user[1]
+            })
+
+        return jsonify({'error': 'Identifiants invalides'}), 401
+    except Exception as e:
+        app.logger.error(f'Erreur de login: {str(e)}')
+        return jsonify({'error': 'Erreur de connexion'}), 500
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -42,9 +58,10 @@ def logout():
 
 @app.route('/api/auth/check')
 def check_auth():
+    is_authenticated = 'user_id' in session
     return jsonify({
-        'authenticated': 'user_id' in session,
-        'is_admin': session.get('is_admin', False)
+        'authenticated': is_authenticated,
+        'is_admin': session.get('is_admin', False) if is_authenticated else False
     })
 
 # Routes du chat
@@ -53,6 +70,9 @@ def check_auth():
 def get_models():
     try:
         result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception('Erreur Ollama list')
+
         lines = result.stdout.strip().split('\n')[1:]  # Skip header
         models = []
         for line in lines:
@@ -66,13 +86,14 @@ def get_models():
                 })
         return jsonify(models)
     except Exception as e:
+        app.logger.error(f'Erreur get_models: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/chat', methods=['POST'])
 @login_required
 def chat():
-    data = request.json
     try:
+        data = request.json
         response = subprocess.run([
             'curl', '-X', 'POST', 'http://localhost:11434/api/chat',
             '-H', 'Content-Type: application/json',
@@ -88,10 +109,11 @@ def chat():
 
         return response.stdout, 200
     except Exception as e:
+        app.logger.error(f'Erreur chat: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    # Ensure directories exist
+    # Ensure logs directory exists
     os.makedirs('logs', exist_ok=True)
 
     # Run in production mode
