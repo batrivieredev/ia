@@ -12,11 +12,14 @@ def check_command(command):
     except FileNotFoundError:
         return False
 
-def install_package(package):
-    """Installe un paquet via apt"""
+def install_package(package, use_pip=False):
+    """Installe un paquet via apt ou pip"""
     print(f"Installation de {package}...")
     try:
-        subprocess.run(['apt', 'install', '-y', package], check=True)
+        if use_pip:
+            subprocess.run(['pip3', 'install', '--break-system-packages', package], check=True)
+        else:
+            subprocess.run(['apt', 'install', '-y', package], check=True)
         print(f"✓ {package} installé")
         return True
     except subprocess.CalledProcessError:
@@ -32,39 +35,41 @@ def check_and_install_requirements():
 
     print("Vérification des dépendances...")
 
-    requirements = {
-        'python3-flask': 'Flask',
-        'python3-psycopg2': 'psycopg2',
-        'postgresql': 'PostgreSQL',
-        'curl': 'curl'
-    }
+    # Vérifier/installer pip si nécessaire
+    if not check_command('pip3'):
+        if not install_package('python3-pip'):
+            return False
+    print("✓ pip3 est installé")
 
-    missing_packages = []
-
-    # Vérifier Python packages
+    # Installer Flask et psycopg2 via pip
     try:
         import flask
         print("✓ Flask est installé")
     except ImportError:
-        missing_packages.append('python3-flask')
+        if not install_package('flask', use_pip=True):
+            return False
 
     try:
         import psycopg2
         print("✓ psycopg2 est installé")
     except ImportError:
-        missing_packages.append('python3-psycopg2')
+        # Installer les dépendances de compilation pour psycopg2
+        install_package('python3-dev')
+        install_package('libpq-dev')
+        if not install_package('psycopg2-binary', use_pip=True):
+            return False
 
     # Vérifier PostgreSQL
     if not check_command('psql'):
-        missing_packages.append('postgresql')
-    else:
-        print("✓ PostgreSQL est installé")
+        if not install_package('postgresql'):
+            return False
+    print("✓ PostgreSQL est installé")
 
     # Vérifier curl
     if not check_command('curl'):
-        missing_packages.append('curl')
-    else:
-        print("✓ curl est installé")
+        if not install_package('curl'):
+            return False
+    print("✓ curl est installé")
 
     # Vérifier Ollama
     print("\nVérification d'Ollama...")
@@ -72,15 +77,7 @@ def check_and_install_requirements():
         print("✗ Ollama n'est pas installé")
         print("Pour installer Ollama, suivez les instructions sur: https://ollama.ai/download")
         return False
-    else:
-        print("✓ Ollama est installé")
-
-    # Installer les paquets manquants
-    if missing_packages:
-        print("\nInstallation des paquets manquants...")
-        for package in missing_packages:
-            if not install_package(package):
-                return False
+    print("✓ Ollama est installé")
 
     # Vérifier que PostgreSQL est démarré
     print("\nVérification du service PostgreSQL...")
