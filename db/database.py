@@ -1,15 +1,15 @@
-import psycopg2
+import mysql.connector
 import os
 from pathlib import Path
 
 class Database:
     def __init__(self):
         self.conn_params = {
-            'dbname': 'ia_chat',
+            'database': 'ia_chat',
             'user': 'ia_user',
-            'password': 'ia_password',  # Même mot de passe que dans requirements.py
+            'password': 'ia_password',
             'host': 'localhost',
-            'port': 5432
+            'port': 3306
         }
         self.init_db()
 
@@ -17,14 +17,16 @@ class Database:
         """Initialize the database with schema"""
         conn = self.get_connection()
         with conn.cursor() as cursor:
-            with open(Path(__file__).parent / 'init_postgres.sql', 'r') as f:
-                cursor.execute(f.read())
+            with open(Path(__file__).parent / 'init_mysql.sql', 'r') as f:
+                for statement in f.read().split(';'):
+                    if statement.strip():
+                        cursor.execute(statement)
         conn.commit()
         conn.close()
 
     def get_connection(self):
         """Get a database connection"""
-        return psycopg2.connect(**self.conn_params)
+        return mysql.connector.connect(**self.conn_params)
 
     def verify_user(self, username, password):
         """Verify user credentials"""
@@ -60,7 +62,7 @@ class Database:
                 )
             conn.commit()
             success = True
-        except psycopg2.IntegrityError:
+        except mysql.connector.IntegrityError:
             conn.rollback()
             success = False
         finally:
@@ -84,7 +86,7 @@ class Database:
                     )
             conn.commit()
             success = cursor.rowcount > 0
-        except psycopg2.IntegrityError:
+        except mysql.connector.IntegrityError:
             conn.rollback()
             success = False
         finally:

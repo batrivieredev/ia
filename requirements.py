@@ -27,117 +27,59 @@ def install_package(package, use_pip=False):
         print(f"✗ Erreur lors de l'installation de {package}")
         return False
 
-def setup_postgresql():
-    """Configure et démarre PostgreSQL"""
-    print("\nConfiguration de PostgreSQL...")
+def setup_mysql():
+    """Configure et démarre MySQL"""
+    print("\nConfiguration de MySQL...")
 
-    # Installer PostgreSQL si nécessaire
-    if not check_command('psql'):
-        if not install_package('postgresql'):
+    # Installer MySQL si nécessaire
+    if not check_command('mysql'):
+        if not install_package('mysql-server'):
             return False
-    print("✓ PostgreSQL est installé")
+    print("✓ MySQL est installé")
 
-    # Initialiser le cluster PostgreSQL
+    # Démarrer MySQL
+    print("Démarrage de MySQL...")
     try:
-        cluster_exists = subprocess.run(
-            ['pg_lsclusters'],
-            capture_output=True,
-            text=True
-        ).stdout.strip()
-
-        if not cluster_exists:
-            print("Initialisation du cluster PostgreSQL...")
-            version = subprocess.run(
-                ['pg_config', '--version'],
-                capture_output=True,
-                text=True
-            ).stdout.split()[1]
-
-            subprocess.run([
-                'pg_createcluster',
-                version,
-                'main'
-            ], check=True)
-            print("✓ Cluster PostgreSQL initialisé")
-    except subprocess.CalledProcessError as e:
-        print(f"✗ Erreur lors de l'initialisation du cluster: {str(e)}")
-        return False
-
-    # Démarrer PostgreSQL
-    print("Démarrage de PostgreSQL...")
-    try:
-        subprocess.run(['systemctl', 'start', 'postgresql'], check=True)
-        # Attendre que PostgreSQL soit prêt
+        subprocess.run(['systemctl', 'start', 'mysql'], check=True)
         time.sleep(5)
-        print("✓ PostgreSQL démarré")
+        print("✓ MySQL démarré")
     except subprocess.CalledProcessError:
-        print("✗ Impossible de démarrer PostgreSQL")
+        print("✗ Impossible de démarrer MySQL")
         return False
 
-    # Activer PostgreSQL au démarrage
+    # Activer MySQL au démarrage
     try:
-        subprocess.run(['systemctl', 'enable', 'postgresql'], check=True)
-        print("✓ PostgreSQL activé au démarrage")
+        subprocess.run(['systemctl', 'enable', 'mysql'], check=True)
+        print("✓ MySQL activé au démarrage")
     except subprocess.CalledProcessError:
-        print("! Note: PostgreSQL ne démarrera pas automatiquement au reboot")
+        print("! Note: MySQL ne démarrera pas automatiquement au reboot")
 
     # Créer l'utilisateur et la base de données
     try:
-        # Attendre que le socket soit disponible
-        for _ in range(10):
-            if os.path.exists('/var/run/postgresql/.s.PGSQL.5432'):
-                break
-            time.sleep(1)
+        commands = [
+            "CREATE DATABASE IF NOT EXISTS ia_chat;",
+            "CREATE USER IF NOT EXISTS 'ia_user'@'localhost' IDENTIFIED BY 'ia_password';",
+            "GRANT ALL PRIVILEGES ON ia_chat.* TO 'ia_user'@'localhost';",
+            "FLUSH PRIVILEGES;"
+        ]
 
-        subprocess.run([
-            'sudo', '-u', 'postgres', 'psql',
-            '-c', "CREATE USER ia_user WITH PASSWORD 'ia_password';",
-            '-c', "CREATE DATABASE ia_chat OWNER ia_user;"
-        ], check=True)
-        print("✓ Utilisateur et base de données créés")
-
-        # Configurer l'authentification
-        subprocess.run([
-            'sudo', '-u', 'postgres', 'psql',
-            '-c', "ALTER USER ia_user WITH PASSWORD 'ia_password';"
-        ], check=True)
+        for command in commands:
+            subprocess.run([
+                'mysql', '-u', 'root',
+                '-e', command
+            ], check=True)
+        print("✓ Base de données et utilisateur créés")
 
         # Initialiser la base avec le schéma
         subprocess.run([
-            'sudo', '-u', 'postgres', 'psql',
-            '-d', 'ia_chat',
-            '-f', 'db/init_postgres.sql'
+            'mysql', '-u', 'root',
+            'ia_chat',
+            '-e', f"source {os.path.join('db', 'init_mysql.sql')}"
         ], check=True)
         print("✓ Schéma de la base de données initialisé")
     except subprocess.CalledProcessError as e:
-        if "already exists" not in str(e.stderr):
-            print(f"✗ Erreur lors de la création de la base de données: {str(e)}")
-            return False
-        else:
-            print("✓ La base de données existe déjà")
-
-    # Configuration de pg_hba.conf
-    try:
-        pg_version = subprocess.run(
-            ['pg_config', '--version'],
-            capture_output=True,
-            text=True
-        ).stdout.split()[1].split('.')[0]
-
-        pg_hba_path = f"/etc/postgresql/{pg_version}/main/pg_hba.conf"
-
-        if os.path.exists(pg_hba_path):
-            with open(pg_hba_path, 'a') as f:
-                f.write("\nhost    ia_chat         ia_user         127.0.0.1/32            md5\n")
-            print("✓ Configuration de l'authentification mise à jour")
-
-            # Redémarrer PostgreSQL pour appliquer les changements
-            subprocess.run(['systemctl', 'restart', 'postgresql'], check=True)
-            time.sleep(5)
-        else:
-            print(f"! Note: pg_hba.conf non trouvé à {pg_hba_path}")
-    except Exception as e:
-        print(f"! Note: Erreur lors de la configuration de pg_hba.conf: {str(e)}")
+        print(f"✗ Erreur lors de la configuration de la base de données: {str(e)}")
+        return False
 
     return True
 
@@ -156,7 +98,7 @@ def check_and_install_requirements():
             return False
     print("✓ pip3 est installé")
 
-    # Installer Flask et psycopg2 via pip
+    # Installer Flask via pip
     try:
         import flask
         print("✓ Flask est installé")
@@ -164,14 +106,12 @@ def check_and_install_requirements():
         if not install_package('flask', use_pip=True):
             return False
 
+    # Installer mysql-connector-python via pip
     try:
-        import psycopg2
-        print("✓ psycopg2 est installé")
+        import mysql.connector
+        print("✓ mysql-connector-python est installé")
     except ImportError:
-        # Installer les dépendances de compilation pour psycopg2
-        install_package('python3-dev')
-        install_package('libpq-dev')
-        if not install_package('psycopg2-binary', use_pip=True):
+        if not install_package('mysql-connector-python', use_pip=True):
             return False
 
     # Vérifier curl
@@ -188,8 +128,8 @@ def check_and_install_requirements():
         return False
     print("✓ Ollama est installé")
 
-    # Configurer PostgreSQL
-    if not setup_postgresql():
+    # Configurer MySQL
+    if not setup_mysql():
         return False
 
     print("\n✓ Toutes les dépendances sont installées et configurées !")
