@@ -7,7 +7,7 @@
     --text-secondary: #64748b;
     --border-color: #e2e8f0;
     --message-user-bg: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-    --message-assistant-bg: var(--bg-color);
+    --message-assistant-bg: #f1f5f9;
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
@@ -38,6 +38,8 @@ body {
     flex-direction: column;
     background: var(--surface-color);
     box-shadow: var(--shadow-lg);
+    border-radius: 16px;
+    overflow: hidden;
 }
 
 .chat-header {
@@ -47,6 +49,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    box-shadow: var(--shadow-sm);
 }
 
 .header-left {
@@ -56,24 +59,27 @@ body {
 .model-selector {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
 }
 
 .model-selector label {
     font-size: 0.875rem;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 select {
     padding: 12px 16px;
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: 12px;
     font-size: 0.975rem;
     color: var(--text-primary);
     background: var(--bg-color);
     min-width: 200px;
     cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 select:focus {
@@ -85,16 +91,18 @@ select:focus {
 .logout-button {
     padding: 10px 20px;
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: 12px;
     background: transparent;
     color: var(--text-primary);
     font-size: 0.9rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .logout-button:hover {
     background: var(--bg-color);
+    transform: translateY(-1px);
 }
 
 .chat-messages {
@@ -103,7 +111,7 @@ select:focus {
     padding: 24px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 24px;
     background:
         radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent 50%),
         radial-gradient(circle at bottom left, rgba(79, 70, 229, 0.05), transparent 50%);
@@ -114,12 +122,13 @@ select:focus {
     text-align: center;
     margin: auto;
     max-width: 600px;
+    animation: fadeIn 0.5s ease-out;
 }
 
 .welcome-message h1 {
-    font-size: 2rem;
+    font-size: 2.5rem;
     font-weight: 800;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
     background: var(--message-user-bg);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -128,6 +137,7 @@ select:focus {
 .welcome-message p {
     color: var(--text-secondary);
     font-size: 1.1rem;
+    line-height: 1.6;
 }
 
 .message {
@@ -135,13 +145,14 @@ select:focus {
     padding: 16px 20px;
     animation: messageAppear 0.3s ease-out;
     position: relative;
+    line-height: 1.6;
 }
 
 .message.user {
     background: var(--message-user-bg);
     color: white;
     align-self: flex-end;
-    border-radius: 16px 16px 4px 16px;
+    border-radius: 20px 20px 4px 20px;
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
 }
 
@@ -149,21 +160,34 @@ select:focus {
     background: var(--message-assistant-bg);
     color: var(--text-primary);
     align-self: flex-start;
-    border-radius: 16px 16px 16px 4px;
+    border-radius: 20px 20px 20px 4px;
     border: 1px solid var(--border-color);
+}
+
+.message-content {
+    font-size: 1rem;
+    white-space: pre-wrap;
 }
 
 .message-time {
     font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-top: 4px;
+    margin-top: 8px;
     opacity: 0.8;
+}
+
+.message.user .message-time {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.message.assistant .message-time {
+    color: var(--text-secondary);
 }
 
 .chat-input {
     padding: 24px;
     background: var(--surface-color);
     border-top: 1px solid var(--border-color);
+    box-shadow: 0 -1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
 #chat-form {
@@ -181,13 +205,14 @@ textarea {
     padding: 16px 20px;
     padding-right: 60px;
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: 16px;
     font-size: 1rem;
     resize: none;
     max-height: 200px;
     background: var(--bg-color);
     color: var(--text-primary);
     font-family: inherit;
+    line-height: 1.5;
     transition: all 0.2s ease;
 }
 
@@ -212,7 +237,7 @@ button[type="submit"] {
     background: var(--message-user-bg);
     color: white;
     border: none;
-    border-radius: 12px;
+    border-radius: 16px;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
@@ -232,7 +257,8 @@ button[type="submit"]:disabled {
 .loading {
     display: flex;
     gap: 6px;
-    padding: 8px;
+    padding: 12px;
+    justify-content: center;
 }
 
 .loading span {
@@ -262,10 +288,20 @@ button[type="submit"]:disabled {
     }
 }
 
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 @media (max-width: 768px) {
     .chat-container {
         height: 100vh;
         margin: 0;
+        border-radius: 0;
     }
 
     .chat-header {
@@ -287,5 +323,9 @@ button[type="submit"]:disabled {
 
     select {
         min-width: 160px;
+    }
+
+    .welcome-message h1 {
+        font-size: 2rem;
     }
 }

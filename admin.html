@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration - Chat IA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>Administration</h1>
+            <div class="header-actions">
+                <button id="add-user-btn" class="primary-button">+ Nouvel utilisateur</button>
+                <button id="logout-button" class="secondary-button">Se déconnecter</button>
+            </div>
+        </header>
+
+        <main class="admin-content">
+            <div class="users-list">
+                <div class="list-header">
+                    <h2>Utilisateurs</h2>
+                    <div class="search-box">
+                        <input type="text" id="search-users" placeholder="Rechercher un utilisateur...">
+                    </div>
+                </div>
+                <div class="users-table-container">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>Nom d'utilisateur</th>
+                                <th>Date de création</th>
+                                <th>Admin</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                            <!-- Les utilisateurs seront ajoutés ici dynamiquement -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal d'édition/création d'utilisateur -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Nouvel utilisateur</h2>
+                <button class="close-button">&times;</button>
+            </div>
+            <form id="user-form">
+                <div class="form-group">
+                    <label for="username">Nom d'utilisateur</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Mot de passe</label>
+                    <input type="password" id="password">
+                    <small class="password-notice">Laissez vide pour conserver l'ancien mot de passe</small>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="is-admin">
+                        Administrateur
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="secondary-button" id="cancel-button">Annuler</button>
+                    <button type="submit" class="primary-button">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
