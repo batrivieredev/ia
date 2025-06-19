@@ -3,6 +3,7 @@
 import subprocess
 import sys
 import os
+import time
 
 def check_command(command):
     """Vérifie si une commande est disponible"""
@@ -25,6 +26,77 @@ def install_package(package, use_pip=False):
     except subprocess.CalledProcessError:
         print(f"✗ Erreur lors de l'installation de {package}")
         return False
+
+def setup_postgresql():
+    """Configure et démarre PostgreSQL"""
+    print("\nConfiguration de PostgreSQL...")
+
+    # Installer PostgreSQL si nécessaire
+    if not check_command('psql'):
+        if not install_package('postgresql'):
+            return False
+    print("✓ PostgreSQL est installé")
+
+    # Démarrer PostgreSQL
+    print("Démarrage de PostgreSQL...")
+    try:
+        subprocess.run(['systemctl', 'start', 'postgresql'], check=True)
+        # Attendre que PostgreSQL soit prêt
+        time.sleep(5)
+        print("✓ PostgreSQL démarré")
+    except subprocess.CalledProcessError:
+        print("✗ Impossible de démarrer PostgreSQL")
+        return False
+
+    # Activer PostgreSQL au démarrage
+    try:
+        subprocess.run(['systemctl', 'enable', 'postgresql'], check=True)
+        print("✓ PostgreSQL activé au démarrage")
+    except subprocess.CalledProcessError:
+        print("! Note: PostgreSQL ne démarrera pas automatiquement au reboot")
+
+    # Configurer l'authentification
+    pg_hba_path = "/etc/postgresql/*/main/pg_hba.conf"
+    try:
+        # Trouver le fichier pg_hba.conf
+        pg_hba_files = subprocess.run(['ls', '-d', pg_hba_path], capture_output=True, text=True).stdout.strip().split('\n')
+        if pg_hba_files:
+            pg_hba_file = pg_hba_files[0]
+            # Ajouter la configuration
+            with open(pg_hba_file, 'a') as f:
+                f.write("\nhost    ia_chat         ia_user         127.0.0.1/32            md5\n")
+            print("✓ Configuration de l'authentification mise à jour")
+
+            # Redémarrer PostgreSQL pour appliquer les changements
+            subprocess.run(['systemctl', 'restart', 'postgresql'], check=True)
+            time.sleep(5)
+    except Exception as e:
+        print(f"! Note: Erreur lors de la configuration de pg_hba.conf: {str(e)}")
+
+    # Créer l'utilisateur et la base de données
+    try:
+        subprocess.run([
+            'sudo', '-u', 'postgres', 'psql',
+            '-c', "CREATE USER ia_user WITH PASSWORD 'ia_password';",
+            '-c', "CREATE DATABASE ia_chat OWNER ia_user;"
+        ], check=True)
+        print("✓ Utilisateur et base de données créés")
+
+        # Initialiser la base avec le schéma
+        subprocess.run([
+            'sudo', '-u', 'postgres', 'psql',
+            '-d', 'ia_chat',
+            '-f', 'db/init_postgres.sql'
+        ], check=True)
+        print("✓ Schéma de la base de données initialisé")
+    except subprocess.CalledProcessError as e:
+        if "already exists" not in str(e.stderr):
+            print("✗ Erreur lors de la création de la base de données")
+            return False
+        else:
+            print("✓ La base de données existe déjà")
+
+    return True
 
 def check_and_install_requirements():
     """Vérifie et installe les dépendances nécessaires"""
@@ -59,12 +131,6 @@ def check_and_install_requirements():
         if not install_package('psycopg2-binary', use_pip=True):
             return False
 
-    # Vérifier PostgreSQL
-    if not check_command('psql'):
-        if not install_package('postgresql'):
-            return False
-    print("✓ PostgreSQL est installé")
-
     # Vérifier curl
     if not check_command('curl'):
         if not install_package('curl'):
@@ -79,28 +145,8 @@ def check_and_install_requirements():
         return False
     print("✓ Ollama est installé")
 
-    # Vérifier que PostgreSQL est démarré
-    print("\nVérification du service PostgreSQL...")
-    try:
-        subprocess.run(['systemctl', 'is-active', '--quiet', 'postgresql'])
-        print("✓ PostgreSQL est en cours d'exécution")
-    except subprocess.CalledProcessError:
-        print("Démarrage de PostgreSQL...")
-        try:
-            subprocess.run(['systemctl', 'start', 'postgresql'], check=True)
-            print("✓ PostgreSQL démarré")
-        except subprocess.CalledProcessError:
-            print("✗ Impossible de démarrer PostgreSQL")
-            return False
-
-    # Vérifier la base de données
-    print("\nVérification de la base de données...")
-    try:
-        import db.database
-        db.database.db.init_db()
-        print("✓ Base de données initialisée")
-    except Exception as e:
-        print(f"✗ Erreur d'initialisation de la base de données: {str(e)}")
+    # Configurer PostgreSQL
+    if not setup_postgresql():
         return False
 
     print("\n✓ Toutes les dépendances sont installées et configurées !")

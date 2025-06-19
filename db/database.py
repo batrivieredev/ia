@@ -7,8 +7,9 @@ class Database:
         self.conn_params = {
             'dbname': 'ia_chat',
             'user': 'ia_user',
-            'password': 'votre_mot_de_passe',  # À changer en production
-            'host': 'localhost'
+            'password': 'ia_password',  # Même mot de passe que dans requirements.py
+            'host': 'localhost',
+            'port': 5432
         }
         self.init_db()
 
