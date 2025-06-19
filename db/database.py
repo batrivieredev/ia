@@ -1,5 +1,5 @@
 import mysql.connector
-from mysql.connector import pooling
+from mysql.connector import pooling, Error
 import os
 from pathlib import Path
 
@@ -16,20 +16,37 @@ class Database:
             'password': 'ia_password'
         }
 
-        # Initialize connection pool
-        self.pool = mysql.connector.pooling.MySQLConnectionPool(**self.pool_config)
-        self.init_db()
+        try:
+            # Initialize connection pool
+            self.pool = mysql.connector.pooling.MySQLConnectionPool(**self.pool_config)
+            self.init_db()
+        except Error as e:
+            print(f"Erreur de connexion à la base de données: {str(e)}")
+            raise
 
     def init_db(self):
         """Initialize the database with schema"""
         conn = self.get_connection()
         try:
             with conn.cursor() as cursor:
+                # Lire et exécuter le fichier SQL
                 with open(Path(__file__).parent / 'init_mysql.sql', 'r') as f:
-                    for statement in f.read().split(';'):
-                        if statement.strip():
+                    sql = f.read()
+
+                # Exécuter chaque commande séparément
+                for statement in sql.split(';'):
+                    if statement.strip():
+                        try:
                             cursor.execute(statement)
+                        except Error as e:
+                            # Ignorer les erreurs de clé dupliquée ou de table existante
+                            if not (e.errno == 1061 or e.errno == 1050):
+                                raise
             conn.commit()
+        except Error as e:
+            print(f"Erreur d'initialisation de la base de données: {str(e)}")
+            conn.rollback()
+            raise
         finally:
             conn.close()
 
@@ -122,5 +139,9 @@ class Database:
         finally:
             conn.close()
 
-# Initialize database on import
-db = Database()
+try:
+    # Initialize database on import
+    db = Database()
+except Exception as e:
+    print(f"Erreur fatale lors de l'initialisation de la base de données: {str(e)}")
+    raise
