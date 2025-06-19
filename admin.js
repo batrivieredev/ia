@@ -7,19 +7,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.getElementById('logout-button');
     const usersTableBody = document.getElementById('users-table-body');
     const modalTitle = document.getElementById('modal-title');
+    const closeModalBtns = document.querySelectorAll('[data-bs-dismiss="modal"]');
 
     // Bootstrap Modal
     const modal = new bootstrap.Modal(userModal);
-    const closeBtn = userModal.querySelector('.btn-close');
-    const cancelBtn = userModal.querySelector('.btn-outline-secondary');
 
     // Event Listeners
     addUserBtn.addEventListener('click', openModal);
     userForm.addEventListener('submit', handleUserSubmit);
     searchInput.addEventListener('input', handleSearch);
     logoutButton.addEventListener('click', handleLogout);
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
+    closeModalBtns.forEach(btn => btn.addEventListener('click', closeModal));
 
     // Variables
     let editingUserId = null;
@@ -70,11 +68,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td>
                     <div class="user-actions">
-                        <button onclick="editUser(${user.id})" class="btn btn-outline-primary btn-sm">
+                        <button type="button" onclick="window.editUser(${user.id})" class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-pencil"></i> Modifier
                         </button>
                         ${user.username !== 'admin' ?
-                            `<button onclick="deleteUser(${user.id})" class="btn btn-danger btn-sm">
+                            `<button type="button" onclick="window.deleteUser(${user.id})" class="btn btn-danger btn-sm">
                                 <i class="bi bi-trash"></i> Supprimer
                             </button>`
                             : ''
@@ -150,7 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                throw new Error('Erreur lors de la suppression');
+                const data = await response.json();
+                throw new Error(data.error || "Erreur lors de la suppression");
             }
 
             await loadUsers();
@@ -170,10 +169,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleLogout() {
         try {
-            await fetch('/api/auth/logout', { method: 'POST' });
+            const response = await fetch('/api/auth/logout', { method: 'POST' });
+            if (!response.ok) {
+                throw new Error('Erreur lors de la déconnexion');
+            }
             window.location.href = '/login.html';
         } catch (error) {
-            console.error('Erreur logout:', error);
+            console.error('Erreur:', error);
+            alert("Erreur lors de la déconnexion");
         }
     }
 
@@ -190,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         editingUserId = null;
     }
 
-    // Utility functions
     function formatDate(dateString) {
         return new Date(dateString).toLocaleDateString('fr-FR', {
             day: '2-digit',
