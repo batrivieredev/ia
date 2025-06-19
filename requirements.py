@@ -98,21 +98,25 @@ def check_and_install_requirements():
             return False
     print("✓ pip3 est installé")
 
-    # Installer Flask via pip
-    try:
-        import flask
-        print("✓ Flask est installé")
-    except ImportError:
-        if not install_package('flask', use_pip=True):
-            return False
+    # Installer les dépendances Python requises
+    required_packages = [
+        'flask',
+        'flask-socketio',
+        'python-socketio',
+        'python-engineio',
+        'requests',
+        'mysql-connector-python',
+        'cachetools',
+        'eventlet'
+    ]
 
-    # Installer mysql-connector-python via pip
-    try:
-        import mysql.connector
-        print("✓ mysql-connector-python est installé")
-    except ImportError:
-        if not install_package('mysql-connector-python', use_pip=True):
-            return False
+    for package in required_packages:
+        try:
+            __import__(package.replace('-', '_'))
+            print(f"✓ {package} est installé")
+        except ImportError:
+            if not install_package(package, use_pip=True):
+                return False
 
     # Vérifier curl
     if not check_command('curl'):
