@@ -6,6 +6,7 @@
     <title>Fusikab IA : Chat IA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -103,14 +104,22 @@
                 <div class="modal-body">
                     <form id="preferences-form">
                         <div class="mb-3">
-                            <label class="form-label">Modèle par défaut</label>
+                            <label class="form-label">
+                                <i class="bi bi-cpu me-1"></i>
+                                Modèle par défaut
+                                <i class="bi bi-info-circle ms-1" data-bs-toggle="tooltip" title="Ce modèle sera sélectionné par défaut pour vos conversations"></i>
+                            </label>
                             <select class="form-select" id="default-model" name="model">
                                 <!-- Rempli dynamiquement -->
                             </select>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Centres d'intérêt</label>
+                            <label class="form-label">
+                                <i class="bi bi-tags me-1"></i>
+                                Centres d'intérêt
+                                <i class="bi bi-info-circle ms-1" data-bs-toggle="tooltip" title="Ajoutez vos centres d'intérêt pour des réponses plus personnalisées"></i>
+                            </label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="interest-input" placeholder="Ex: Musique, DJ, Tech...">
                                 <button class="btn btn-outline-primary" type="button" id="add-interest">
@@ -123,7 +132,11 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Message système personnalisé</label>
+                            <label class="form-label">
+                                <i class="bi bi-chat-quote me-1"></i>
+                                Message système personnalisé
+                                <i class="bi bi-info-circle ms-1" data-bs-toggle="tooltip" title="Personnalisez le comportement de l'IA avec des instructions spécifiques"></i>
+                            </label>
                             <textarea
                                 class="form-control"
                                 id="system-message"
@@ -134,14 +147,30 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="button" class="btn btn-primary" id="save-preferences">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x me-1"></i>
+                        Annuler
+                    </button>
+                    <button type="button" class="btn btn-primary" id="save-preferences">
+                        <i class="bi bi-check2 me-1"></i>
+                        Enregistrer
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Toast container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="chat.js"></script>
+
+    <!-- Keyboard shortcuts info -->
+    <div class="position-fixed bottom-0 start-0 p-3 text-muted small">
+        <div>Ctrl + P : Préférences</div>
+        <div>Entrée : Envoyer</div>
+        <div>Shift + Entrée : Nouvelle ligne</div>
+    </div>
 </body>
 </html>

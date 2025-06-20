@@ -18,6 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const interestsList = document.getElementById('interests-list');
     const systemMessage = document.getElementById('system-message');
     const savePreferencesButton = document.getElementById('save-preferences');
+    const modalContent = document.querySelector('.modal-content');
+
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
 
     // Current preferences state
     let currentPreferences = {
@@ -35,12 +40,29 @@ document.addEventListener('DOMContentLoaded', () => {
     logoutButton.addEventListener('click', handleLogout);
     messageInput.addEventListener('input', handleInput);
     modelSelect.addEventListener('change', handleModelSelect);
-    preferencesButton.addEventListener('click', () => {
-        loadUserPreferences();
-        preferencesModal.show();
-    });
+    preferencesButton.addEventListener('click', showPreferences);
     addInterestButton.addEventListener('click', addInterest);
     savePreferencesButton.addEventListener('click', savePreferences);
+
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'p') {
+            e.preventDefault();
+            showPreferences();
+        }
+        if (e.key === 'Enter' && !e.shiftKey && document.activeElement === messageInput) {
+            e.preventDefault();
+            chatForm.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    // Add interest on Enter key
+    interestInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addInterest();
+        }
+    });
 
     // Vérifier l'authentification
     checkAuth();
@@ -168,6 +190,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function showPreferences() {
+        modalContent.style.opacity = '0.5';
+        preferencesModal.show();
+        await loadUserPreferences();
+        modalContent.style.opacity = '1';
+        modalContent.style.transition = 'opacity 0.3s ease';
+    }
+
+    function showNotification(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type} border-0 position-fixed bottom-0 end-0 m-3`;
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+    }
+
     async function savePreferences() {
         const preferences = {
             model: defaultModelSelect.value,
@@ -185,6 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Erreur réseau');
 
             currentPreferences = preferences;
+            showNotification('Préférences enregistrées avec succès');
             preferencesModal.hide();
 
             // Update model if needed
@@ -194,6 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Erreur sauvegarde préférences:', error);
+            showNotification('Erreur lors de la sauvegarde des préférences', 'danger');
         }
     }
 
@@ -207,13 +257,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addInterestTag(interest) {
         const tag = document.createElement('span');
-        tag.className = 'badge bg-primary me-2 mb-2';
+        tag.className = 'badge bg-primary me-2 mb-2 animate__animated animate__fadeInRight';
         tag.dataset.value = interest;
         tag.innerHTML = `
+            <i class="bi bi-tag me-1"></i>
             ${interest}
-            <button type="button" class="btn-close btn-close-white ms-2" onclick="this.parentElement.remove()"></button>
+            <button type="button" class="btn-close btn-close-white ms-2" onclick="removeInterest(this.parentElement)"></button>
         `;
+        tag.style.opacity = '0';
+        tag.style.transform = 'translateX(-10px)';
         interestsList.appendChild(tag);
+
+        // Trigger animation
+        setTimeout(() => {
+            tag.style.transition = 'all 0.3s ease';
+            tag.style.opacity = '1';
+            tag.style.transform = 'translateX(0)';
+        }, 50);
+    }
+
+    function removeInterest(tag) {
+        tag.style.opacity = '0';
+        tag.style.transform = 'translateX(-10px)';
+        setTimeout(() => tag.remove(), 300);
     }
 
     // Utility Functions
@@ -276,6 +342,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function scrollToBottom() {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        const target = messagesContainer.scrollHeight;
+        messagesContainer.scrollTo({
+            top: target,
+            behavior: 'smooth'
+        });
     }
 });
