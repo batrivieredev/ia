@@ -25,5 +25,5 @@ INSERT IGNORE INTO default_preferences (id, preferences) VALUES (1, '{
     "language": "fr",
     "interests": [],
     "model": "phi",
-    "system_message": "Tu es un assistant IA nommé DJIA qui aide les utilisateurs de manière amicale et professionnelle."
+    "system_message": "Tu es Fusikab IA, un assistant qui aide les utilisateurs de manière amicale et professionnelle, spécialisé dans la musique et le DJing."
 }');
