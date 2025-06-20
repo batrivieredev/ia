@@ -5,9 +5,13 @@ import requests
 import json
 import os
 from cachetools import TTLCache
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'votre_clé_secrète_ici'  # À changer en production
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'votre_clé_secrète_ici')
 
 # Cache pour les modèles (validité 1 heure)
 models_cache = TTLCache(maxsize=100, ttl=3600)
@@ -68,6 +72,33 @@ def check_auth():
         'is_admin': session.get('is_admin', False) if is_authenticated else False
     })
 
+# Routes des préférences
+@app.route('/api/preferences', methods=['GET'])
+@login_required
+def get_preferences():
+    try:
+        user_id = session['user_id']
+        preferences = db.get_user_preferences(user_id)
+        return jsonify(preferences)
+    except Exception as e:
+        app.logger.error(f'Erreur get_preferences: {str(e)}')
+        return jsonify({'error': 'Erreur lors de la récupération des préférences'}), 500
+
+@app.route('/api/preferences', methods=['POST'])
+@login_required
+def update_preferences():
+    try:
+        user_id = session['user_id']
+        preferences = request.json
+        success = db.update_preferences(user_id, preferences)
+
+        if success:
+            return jsonify({'success': True})
+        return jsonify({'error': 'Erreur lors de la mise à jour'}), 400
+    except Exception as e:
+        app.logger.error(f'Erreur update_preferences: {str(e)}')
+        return jsonify({'error': 'Erreur lors de la mise à jour des préférences'}), 500
+
 # Routes du chat
 @app.route('/api/models', methods=['GET'])
 @login_required
@@ -99,19 +130,64 @@ def get_models():
         app.logger.error(f'Erreur get_models: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
+# Route d'inscription publique
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    try:
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({'error': 'Identifiants requis'}), 400
+
+        success = db.create_user(
+            username=username,
+            password=password,
+            is_admin=False
+        )
+
+        if success:
+            user = db.verify_user(username, password)
+            if user:
+                session['user_id'] = user[0]
+                session['is_admin'] = user[1]
+                return jsonify({'success': True})
+
+        return jsonify({'error': 'Nom d\'utilisateur déjà pris'}), 400
+    except Exception as e:
+        app.logger.error(f'Erreur register: {str(e)}')
+        return jsonify({'error': 'Erreur d\'inscription'}), 500
+
 @app.route('/api/chat', methods=['POST'])
 @login_required
 def chat():
     try:
         data = request.json
+        user_id = session['user_id']
+
+        # Get user preferences
+        user_prefs = db.get_user_preferences(user_id)
+
+        # Construct system message
+        system_msg = user_prefs.get('system_message', '')
+        if user_prefs.get('interests'):
+            system_msg += f"\nCentres d'intérêt de l'utilisateur: {', '.join(user_prefs['interests'])}"
+
+        # Prepare messages with context
+        messages = [
+            {"role": "system", "content": system_msg},
+            *data['messages']
+        ]
+
         response = requests.post(
-            'http://localhost:11434/api/chat',
+            f"http://{os.getenv('OLLAMA_HOST', 'localhost')}:{os.getenv('OLLAMA_PORT', '11434')}/api/chat",
             json={
-                'model': data['model'],
-                'messages': data['messages'],
+                'model': data.get('model', user_prefs.get('model', 'phi')),
+                'messages': messages,
                 'stream': False
             },
-            timeout=30
+            timeout=int(os.getenv('OLLAMA_TIMEOUT', '30'))
         )
 
         if response.status_code != 200:
@@ -190,8 +266,8 @@ if __name__ == '__main__':
 
     # Run in production mode
     app.run(
-        host='127.0.0.1',
-        port=5000,
-        debug=False,
+        host=os.getenv('FLASK_HOST', '127.0.0.1'),
+        port=int(os.getenv('FLASK_PORT', 5000)),
+        debug=os.getenv('FLASK_DEBUG', 'False').lower() == 'true',
         threaded=True
     )

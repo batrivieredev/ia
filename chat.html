@@ -24,6 +24,10 @@
                     </div>
                 </div>
                 <div class="navbar-nav ms-auto">
+                    <button id="preferences-button" class="btn btn-outline-primary me-3">
+                        <i class="bi bi-gear"></i>
+                        Préférences
+                    </button>
                     <a href="/" class="nav-link me-3">
                         <i class="bi bi-house-door"></i>
                         Accueil
@@ -87,6 +91,55 @@
             </div>
         </div>
     </template>
+
+    <!-- Modal des préférences -->
+    <div class="modal fade" id="preferences-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Préférences utilisateur</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="preferences-form">
+                        <div class="mb-3">
+                            <label class="form-label">Modèle par défaut</label>
+                            <select class="form-select" id="default-model" name="model">
+                                <!-- Rempli dynamiquement -->
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Centres d'intérêt</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="interest-input" placeholder="Ex: Musique, DJ, Tech...">
+                                <button class="btn btn-outline-primary" type="button" id="add-interest">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </div>
+                            <div id="interests-list" class="mt-2">
+                                <!-- Liste des intérêts -->
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Message système personnalisé</label>
+                            <textarea
+                                class="form-control"
+                                id="system-message"
+                                rows="3"
+                                placeholder="Message pour personnaliser le comportement de l'IA"
+                            ></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="save-preferences">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="chat.js"></script>

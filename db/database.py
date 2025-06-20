@@ -2,6 +2,11 @@ import mysql.connector
 from mysql.connector import pooling, Error
 import os
 from pathlib import Path
+import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class Database:
     def __init__(self):
@@ -9,11 +14,11 @@ class Database:
             'pool_name': 'mypool',
             'pool_size': 5,
             'pool_reset_session': True,
-            'host': 'localhost',
-            'port': 3306,
-            'database': 'ia_chat',
-            'user': 'ia_user',
-            'password': 'ia_password'
+            'host': os.getenv('MYSQL_HOST', 'localhost'),
+            'port': int(os.getenv('MYSQL_PORT', 3306)),
+            'database': os.getenv('MYSQL_DATABASE', 'ia_chat'),
+            'user': os.getenv('MYSQL_USER', 'ia_user'),
+            'password': os.getenv('MYSQL_PASSWORD', 'ia_password')
         }
 
         # Initialize connection pool
@@ -82,14 +87,56 @@ class Database:
         finally:
             conn.close()
 
-    def create_user(self, username, password, is_admin=False):
-        """Create a new user"""
+    def get_default_preferences(self):
+        """Get default preferences from database"""
+        conn = self.get_connection()
+        try:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute('SELECT preferences FROM default_preferences WHERE id = 1')
+                result = cursor.fetchone()
+                return json.loads(result['preferences']) if result else {}
+        finally:
+            conn.close()
+
+    def get_user_preferences(self, user_id):
+        """Get user preferences"""
+        conn = self.get_connection()
+        try:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute('SELECT preferences FROM users WHERE id = %s', (user_id,))
+                result = cursor.fetchone()
+                return json.loads(result['preferences']) if result and result['preferences'] else self.get_default_preferences()
+        finally:
+            conn.close()
+
+    def update_preferences(self, user_id, preferences):
+        """Update user preferences"""
         conn = self.get_connection()
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    'INSERT INTO users (username, password, is_admin) VALUES (%s, %s, %s)',
-                    (username, password, is_admin)
+                    'UPDATE users SET preferences = %s WHERE id = %s',
+                    (json.dumps(preferences), user_id)
+                )
+            conn.commit()
+            return True
+        except Error:
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+    def create_user(self, username, password, is_admin=False, preferences=None):
+        """Create a new user"""
+        conn = self.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                if preferences is None:
+                    preferences = self.get_default_preferences()
+
+                cursor.execute(
+                    'INSERT INTO users (username, password, is_admin, preferences) VALUES (%s, %s, %s, %s)',
+                    (username, password, is_admin, json.dumps(preferences))
                 )
             conn.commit()
             return True
