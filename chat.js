@@ -247,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const contentDiv = messageElement.querySelector('.message-content');
         const timeDiv = messageElement.querySelector('.message-time');
 
-        messageDiv.classList.add(isUser ? 'user' : 'assistant');
+        messageDiv.classList.add(isUser ? 'user' : 'fusikab');
         contentDiv.textContent = content;
         timeDiv.textContent = new Date().toLocaleTimeString('fr-FR', {
             hour: '2-digit',

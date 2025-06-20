@@ -7,7 +7,7 @@
     --text-secondary: #64748b;
     --border-color: #e2e8f0;
     --message-user-bg: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-    --message-assistant-bg: #f8fafc;
+    --message-fusikab-bg: #f8fafc;
 }
 
 body {
@@ -125,8 +125,8 @@ body {
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
 }
 
-.message.assistant {
-    background: var(--message-assistant-bg);
+.message.fusikab {
+    background: var(--message-fusikab-bg);
     color: var(--text-primary);
     align-self: flex-start;
     border-radius: 1.25rem 1.25rem 1.25rem 0.25rem;
@@ -148,7 +148,7 @@ body {
     color: rgba(255, 255, 255, 0.9);
 }
 
-.message.assistant .message-time {
+.message.fusikab .message-time {
     color: var(--text-secondary);
 }
 
